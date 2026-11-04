@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Wang Tessellation Tile Rearranger</title>
+<style>
+  :root {
+    --bg: #1a1a1e;
+    --panel: #25252b;
+    --border: #3a3a42;
+    --text: #e8e8ed;
+    --accent: #6c8cff;
+    --accent-hover: #8aa4ff;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: system-ui, -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 20px;
+    line-height: 1.4;
+  }
+  h1 { font-size: 1.4rem; margin-bottom: 16px; font-weight: 600; }
+  .layout {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    gap: 24px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+  @media (max-width: 900px) {
+    .layout { grid-template-columns: 1fr; }
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px;
+  }
+  label {
+    display: block;
+    font-size: 0.85rem;
+    margin-bottom: 4px;
+    color: #aaa;
+  }
+  .field { margin-bottom: 14px; }
+  input[type="file"],
+  select,
+  input[type="number"] {
+    width: 100%;
+    padding: 8px 10px;
+    background: #1e1e24;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 0.95rem;
+  }
+  input[type="number"] { width: 100%; }
+  .row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  button {
+    width: 100%;
+    padding: 10px 14px;
+    border: none;
+    border-radius: 6px;
+    background: var(--accent);
+    color: white;
+    font-size: 0.95rem;
+    font-weight: 500;
+    cursor: pointer;
+    margin-top: 6px;
+  }
+  button:hover { background: var(--accent-hover); }
+  button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+  button.secondary {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+  button.secondary:hover {
+    background: #2e2e36;
+  }
+  .hint {
+    font-size: 0.8rem;
+    color: #888;
+    margin-top: 6px;
+  }
+  .canvas-wrap {
+    background: #111;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    overflow: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 400px;
+    padding: 12px;
+  }
+  canvas {
+    max-width: 100%;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    background: #000;
+  }
+  .status {
+    font-size: 0.85rem;
+    color: #aaa;
+    margin-top: 10px;
+  }
+  .preview-label {
+    font-size: 0.8rem;
+    color: #888;
+    margin-bottom: 8px;
+  }
+</style>
+</head>
+<body>
+  <h1>Wang Tessellation – 16-Tile Rearranger</h1>
+
+  <div class="layout">
+    <!-- Controls -->
+    <div class="panel">
+      <div class="field">
+        <label>Upload 4×4 Wang tileset image</label>
+        <input type="file" id="fileInput" accept="image/*">
+        <div class="hint">Image should be a 4×4 grid of tiles (16 tiles total).</div>
+      </div>
+
+      <div class="field">
+        <label>Tile size (px)</label>
+        <select id="tileSize">
+          <option value="8">8 × 8</option>
+          <option value="16" selected>16 × 16</option>
+          <option value="32">32 × 32</option>
+          <option value="64">64 × 64</option>
+          <option value="128">128 × 128</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label>Output grid size (tiles)</label>
+        <div class="row">
+          <div>
+            <label>Columns</label>
+            <input type="number" id="cols" value="32" min="4" max="256">
+          </div>
+          <div>
+            <label>Rows</label>
+            <input type="number" id="rows" value="18" min="4" max="256">
+          </div>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Export resolution</label>
+        <select id="resolution">
+          <option value="native">Native (tile size × grid)</option>
+          <option value="1280x720">720p (1280×720)</option>
+          <option value="1920x1080" selected>1080p (1920×1080)</option>
+          <option value="2560x1440">1440p (2560×1440)</option>
+          <option value="3840x2160">4K (3840×2160)</option>
+          <option value="custom">Custom…</option>
+        </select>
+      </div>
+
+      <div class="field" id="customRes" style="display:none;">
+        <div class="row">
+          <div>
+            <label>Width</label>
+            <input type="number" id="customW" value="1920" min="64" max="7680">
+          </div>
+          <div>
+            <label>Height</label>
+            <input type="number" id="customH" value="1080" min="64" max="4320">
+          </div>
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Random seed (optional)</label>
+        <input type="number" id="seed" placeholder="Leave empty for random">
+      </div>
+
+      <button id="generateBtn" disabled>Generate Wang Tessellation</button>
+      <button id="exportBtn" class="secondary" disabled>Export PNG</button>
+
+      <div class="status" id="status">Upload a 4×4 tileset image to begin.</div>
+    </div>
+
+    <!-- Preview -->
+    <div>
+      <div class="preview-label">Preview (scaled to fit)</div>
+      <div class="canvas-wrap">
+        <canvas id="preview"></canvas>
+      </div>
+    </div>
+  </div>
+
+<script>
+// ---------- State ----------
+let sourceImg = null;
+let tileCanvases = [];          // 16 individual tile canvases
+let wangGrid = null;            // 2D array of tile indices 0-15
+let outputCanvas = null;        // full-resolution result
+
+// Standard 2-color Wang edge encoding:
+// bit 0 = North, bit 1 = East, bit 2 = South, bit 3 = West
+// color 0 or 1
+function edgesOf(tile) {
+  return {
+    n: (tile >> 0) & 1,
+    e: (tile >> 1) & 1,
+    s: (tile >> 2) & 1,
+    w: (tile >> 3) & 1
+  };
+}
+
+// ---------- Seeded RNG ----------
+function mulberry32(a) {
+  return function() {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+// ---------- Extract 16 tiles from uploaded 4×4 image ----------
+function extractTiles(img, tileSize) {
+  const tiles = [];
+  const expectedW = tileSize * 4;
+  const expectedH = tileSize * 4;
+
+  // Create a temporary canvas at the expected size
+  const tmp = document.createElement('canvas');
+  tmp.width = expectedW;
+  tmp.height = expectedH;
+  const tctx = tmp.getContext('2d');
+  tctx.imageSmoothingEnabled = false;
+
+  // Draw the source image stretched/squashed into the 4×4 grid
+  // (or cropped if larger – we just scale to fit)
+  tctx.drawImage(img, 0, 0, expectedW, expectedH);
+
+  for (let y = 0; y < 4; y++) {
+    for (let x = 0; x < 4; x++) {
+      const c = document.createElement('canvas');
+      c.width = tileSize;
+      c.height = tileSize;
+      const ctx = c.getContext('2d');
+      ctx.imageSmoothingEnabled = false;
+      ctx.drawImage(
+        tmp,
+        x * tileSize, y * tileSize, tileSize, tileSize,
+        0, 0, tileSize, tileSize
+      );
+      tiles.push(c);
+    }
+  }
+  return tiles;
+}
+
+// ---------- Generate a valid Wang tiling ----------
+function generateWangGrid(cols, rows, rng) {
+  const grid = Array.from({ length: rows }, () => new Array(cols));
+
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < cols; x++) {
+      // Required colors from neighbors
+      const needN = y > 0 ? edgesOf(grid[y-1][x]).s : (rng() < 0.5 ? 0 : 1);
+      const needW = x > 0 ? edgesOf(grid[y][x-1]).e : (rng() < 0.5 ? 0 : 1);
+
+      // Collect all tiles that match the required North & West edges
+      const candidates = [];
+      for (let t = 0; t < 16; t++) {
+        const e = edgesOf(t);
+        if (e.n === needN && e.w === needW) {
+          candidates.push(t);
+        }
+      }
+
+      // Pick randomly among valid candidates
+      grid[y][x] = candidates[Math.floor(rng() * candidates.length)];
+    }
+  }
+  return grid;
+}
+
+// ---------- Render the tessellation ----------
+function renderTessellation(tiles, grid, tileSize) {
+  const cols = grid[0].length;
+  const rows = grid.length;
+  const canvas = document.createElement('canvas');
+  canvas.width = cols * tileSize;
+  canvas.height = rows * tileSize;
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < cols; x++) {
+      const idx = grid[y][x];
+      ctx.drawImage(tiles[idx], x * tileSize, y * tileSize);
+    }
+  }
+  return canvas;
+}
+
+// ---------- Scale to target resolution ----------
+function scaleToResolution(srcCanvas, targetW, targetH) {
+  const out = document.createElement('canvas');
+  out.width = targetW;
+  out.height = targetH;
+  const ctx = out.getContext('2d');
+  ctx.imageSmoothingEnabled = false; // keep pixel look
+  ctx.drawImage(srcCanvas, 0, 0, targetW, targetH);
+  return out;
+}
+
+// ---------- UI helpers ----------
+function setStatus(msg) {
+  document.getElementById('status').textContent = msg;
+}
+
+function updatePreview(canvas) {
+  const preview = document.getElementById('preview');
+  const maxW = 900;
+  const maxH = 600;
+  let w = canvas.width;
+  let h = canvas.height;
+  const scale = Math.min(1, maxW / w, maxH / h);
+  preview.width = Math.round(w * scale);
+  preview.height = Math.round(h * scale);
+  const ctx = preview.getContext('2d');
+  ctx.imageSmoothingEnabled = false;
+  ctx.clearRect(0, 0, preview.width, preview.height);
+  ctx.drawImage(canvas, 0, 0, preview.width, preview.height);
+}
+
+// ---------- Event listeners ----------
+document.getElementById('fileInput').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const url = URL.createObjectURL(file);
+  const img = new Image();
+  img.onload = () => {
+    sourceImg = img;
+    URL.revokeObjectURL(url);
+    document.getElementById('generateBtn').disabled = false;
+    setStatus(`Image loaded (${img.width}×${img.height}). Choose settings and generate.`);
+  };
+  img.onerror = () => setStatus('Failed to load image.');
+  img.src = url;
+});
+
+document.getElementById('resolution').addEventListener('change', e => {
+  document.getElementById('customRes').style.display =
+    e.target.value === 'custom' ? 'block' : 'none';
+});
+
+document.getElementById('generateBtn').addEventListener('click', () => {
+  if (!sourceImg) return;
+
+  const tileSize = parseInt(document.getElementById('tileSize').value, 10);
+  const cols = parseInt(document.getElementById('cols').value, 10);
+  const rows = parseInt(document.getElementById('rows').value, 10);
+  const seedVal = document.getElementById('seed').value;
+  const rng = seedVal === '' ? Math.random : mulberry32(parseInt(seedVal, 10) || 1);
+
+  setStatus('Extracting tiles…');
+  tileCanvases = extractTiles(sourceImg, tileSize);
+
+  setStatus('Generating Wang grid…');
+  wangGrid = generateWangGrid(cols, rows, rng);
+
+  setStatus('Rendering…');
+  outputCanvas = renderTessellation(tileCanvases, wangGrid, tileSize);
+
+  // Decide final size for preview / export base
+  let targetW, targetH;
+  const res = document.getElementById('resolution').value;
+  if (res === 'native') {
+    targetW = outputCanvas.width;
+    targetH = outputCanvas.height;
+  } else if (res === 'custom') {
+    targetW = parseInt(document.getElementById('customW').value, 10);
+    targetH = parseInt(document.getElementById('customH').value, 10);
+  } else {
+    [targetW, targetH] = res.split('x').map(Number);
+  }
+
+  // Keep a high-res version ready for export
+  if (targetW !== outputCanvas.width || targetH !== outputCanvas.height) {
+    outputCanvas = scaleToResolution(outputCanvas, targetW, targetH);
+  }
+
+  updatePreview(outputCanvas);
+  document.getElementById('exportBtn').disabled = false;
+  setStatus(`Done – ${cols}×${rows} tiles → ${outputCanvas.width}×${outputCanvas.height} px`);
+});
+
+document.getElementById('exportBtn').addEventListener('click', () => {
+  if (!outputCanvas) return;
+  const link = document.createElement('a');
+  link.download = `wang-tessellation-${outputCanvas.width}x${outputCanvas.height}.png`;
+  link.href = outputCanvas.toDataURL('image/png');
+  link.click();
+  setStatus('PNG exported.');
+});
+</script>
+</body>
+</html>
